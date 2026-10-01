@@ -115,12 +115,26 @@ async function getCoins(): Promise<Coin[]> {
 
 export default async function Home() {
   const coins = await getCoins();
+    const lastUpdated = new Date().toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
-    <main className="min-h-screen bg-black text-white px-6 py-12">
+          <main className="min-h-screen bg-gradient-to-b from-black via-neutral-950 to-black text-white px-6 py-16">
       <div className="max-w-5xl mx-auto">
-                <img src="/Vestra_header_Logo.png" alt="Vestra" className="h-20 w-auto" />
-        <p className="text-gray-400 mt-2 mb-10">
+        <div className="flex items-center justify-between mb-2">
+          <img src="/Vestra_header_Logo.png" alt="Vestra" className="h-20 w-auto" />
+          <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-full px-3 py-1.5">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <span className="text-xs text-gray-400">Live · Updated {lastUpdated}</span>
+          </div>
+        </div>
+
+        <p className="text-gray-400 mt-2 mb-12">
           Live crypto rates with AI-powered insights
         </p>
 
@@ -130,8 +144,7 @@ export default async function Home() {
             return (
               <div
                 key={coin.symbol}
-                className="bg-neutral-900 border border-neutral-800 rounded-xl p-5"
-              >
+                className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 transition-all duration-300 hover:border-neutral-700 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/40"              >
                   <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <img src={coin.icon} alt={coin.name} className="w-6 h-6" />
@@ -152,13 +165,20 @@ export default async function Home() {
                   {isPositive ? "▲" : "▼"} {Math.abs(coin.change24h).toFixed(2)}%
                 </p>
 
-                <p className="text-gray-400 text-sm mt-3 border-t border-neutral-800 pt-3">
-                  {coin.commentary}
-                </p>
+                                <div className="mt-3 border-t border-neutral-800 pt-3">
+                  <p className="text-[10px] font-semibold tracking-wider text-purple-400 mb-1">
+                    ✦ VESTRA AI
+                  </p>
+                  <p className="text-gray-400 text-sm">{coin.commentary}</p>
+                </div>
               </div>
             );
           })}
-        </div>
+               </div>
+
+        <footer className="mt-16 pt-6 border-t border-neutral-900 text-center text-xs text-gray-600">
+          Powered by CoinGecko & Gemini/Groq AI · Built by Umang, With Ai assited Development
+        </footer>
       </div>
     </main>
   );
