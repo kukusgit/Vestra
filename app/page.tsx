@@ -1,69 +1,165 @@
-import Image from "next/image";
+type Coin = {
+  name: string;
+  symbol: string;
+  price: number;
+  change24h: number;
+  commentary: string;
+  icon: string;
+};
 
-export default function Home() {
+const coinList = [
+  { id: "bitcoin", name: "Bitcoin", symbol: "BTC", icon: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png" },
+  { id: "ethereum", name: "Ethereum", symbol: "ETH", icon: "https://assets.coingecko.com/coins/images/279/large/ethereum.png" },
+  { id: "solana", name: "Solana", symbol: "SOL", icon: "https://assets.coingecko.com/coins/images/4128/large/solana.png" },
+  { id: "binancecoin", name: "BNB", symbol: "BNB", icon: "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png" },
+  { id: "ripple", name: "XRP", symbol: "XRP", icon: "https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png" },
+  { id: "dogecoin", name: "Dogecoin", symbol: "DOGE", icon: "https://assets.coingecko.com/coins/images/5/large/dogecoin.png" },
+];
+
+async function callGemini(prompt: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+        next: { revalidate: 900 },
+        signal: controller.signal,
+      }
+    );
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("No text in Gemini response");
+    return text;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function callGroq(prompt: string) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+            model: "openai/gpt-oss-20b",
+            messages: [{ role: "user", content: prompt }],
+    }),
+    next: { revalidate: 900 },
+  });
+    const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("No text in Groq response");
+  return text;
+}
+
+async function getAllCommentary(coins: { name: string; price: number; change24h: number }[]) {
+  const coinDescriptions = coins
+    .map((c) => `${c.name}: ₹${c.price}, ${c.change24h}% change in 24h`)
+    .join("\n");
+
+  const prompt = `For each of these 6 cryptocurrencies, write one short, casual sentence (under 20 words) speculating why it might be moving today. Write it like you're texting a friend who knows nothing about crypto — no jargon like "capital rotation," "DeFi volume," "consolidation," or technical trading terms. Keep it simple and fun. Don't repeat exact numbers back. Respond ONLY with a JSON array of 6 strings, in the same order as listed, no markdown, no extra text.\n\n${coinDescriptions}`;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await callGemini(prompt);
+      const cleaned = text.replace(/```json|```/g, "").trim();
+      return JSON.parse(cleaned) as string[];
+        } catch (err) {
+      console.warn(`Gemini attempt ${attempt + 1} failed:`, err);
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+
+  try {
+    console.log("Falling back to Groq...");
+    const text = await callGroq(prompt);
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned) as string[];
+  } catch (err) {
+    console.error("Groq fallback also failed:", err);
+  }
+
+  return coins.map(() => "Commentary unavailable.");
+}
+
+async function getCoins(): Promise<Coin[]> {
+  const ids = coinList.map((c) => c.id).join(",");
+  const res = await fetch(
+    `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=inr&include_24hr_change=true`,
+    { next: { revalidate: 60 } }
+  );
+  const data = await res.json();
+
+  const coinsWithBasics = coinList.map((coin) => ({
+    name: coin.name,
+    symbol: coin.symbol,
+    price: data[coin.id]?.inr ?? 0,
+    change24h: data[coin.id]?.inr_24h_change ?? 0,
+    icon: coin.icon,
+  }));
+
+  const commentaries = await getAllCommentary(coinsWithBasics);
+
+  return coinsWithBasics.map((coin, i) => ({
+    ...coin,
+    commentary: commentaries[i] ?? "Commentary unavailable.",
+  }));
+}
+
+export default async function Home() {
+  const coins = await getCoins();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-black text-white px-6 py-12">
+      <div className="max-w-5xl mx-auto">
+                <img src="/Vestra_header_Logo.png" alt="Vestra" className="h-20 w-auto" />
+        <p className="text-gray-400 mt-2 mb-10">
+          Live crypto rates with AI-powered insights
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+          {coins.map((coin) => {
+            const isPositive = coin.change24h >= 0;
+            return (
+              <div
+                key={coin.symbol}
+                className="bg-neutral-900 border border-neutral-800 rounded-xl p-5"
+              >
+                  <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <img src={coin.icon} alt={coin.name} className="w-6 h-6" />
+                    <h2 className="text-lg font-semibold">{coin.name}</h2>
+                  </div>
+                  <span className="text-gray-500 text-sm">{coin.symbol}</span>
+                </div>
+
+                <p className="text-2xl font-bold mt-4">
+                  ₹{coin.price.toLocaleString("en-IN")}
+                </p>
+
+                <p
+                  className={`mt-1 text-sm font-medium ${
+                    isPositive ? "text-green-500" : "text-red-500"
+                  }`}
+                >
+                  {isPositive ? "▲" : "▼"} {Math.abs(coin.change24h).toFixed(2)}%
+                </p>
+
+                <p className="text-gray-400 text-sm mt-3 border-t border-neutral-800 pt-3">
+                  {coin.commentary}
+                </p>
+              </div>
+            );
+          })}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
