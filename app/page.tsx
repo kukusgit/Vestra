@@ -64,8 +64,7 @@ async function getAllCommentary(coins: { name: string; price: number; change24h:
     .map((c) => `${c.name}: ₹${c.price}, ${c.change24h}% change in 24h`)
     .join("\n");
 
-  const prompt = `For each of these 6 cryptocurrencies, write one short, casual sentence (under 20 words) speculating why it might be moving today. Write it like you're texting a friend who knows nothing about crypto — no jargon like "capital rotation," "DeFi volume," "consolidation," or technical trading terms. Keep it simple and fun. Don't repeat exact numbers back. Respond ONLY with a JSON array of 6 strings, in the same order as listed, no markdown, no extra text.\n\n${coinDescriptions}`;
-
+  const prompt = `For each of these 6 cryptocurrencies, write one short, casual sentence (under 20 words) describing its price movement today, based only on the price and percentage change given. Do NOT invent specific causes like news, partnerships, celebrity tweets, court rulings, or technical issues — you don't have that information. Instead, describe the move itself in plain, friendly language (e.g. "holding pretty steady," "had a rough day," "quietly climbing"), and you can add a generic, clearly-speculative possibility (e.g. "could just be normal market movement" or "traders might be taking profits") without stating it as fact. Write it like you're texting a friend who knows nothing about crypto — no jargon. Respond ONLY with a JSON array of 6 strings, in the same order as listed, no markdown, no extra text.\n\n${coinDescriptions}`;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const text = await callGemini(prompt);
@@ -88,6 +87,24 @@ async function getAllCommentary(coins: { name: string; price: number; change24h:
 
   return coins.map(() => "Commentary unavailable.");
 }
+
+async function getMarketOverview() {
+  try {
+    const res = await fetch("https://api.coingecko.com/api/v3/global", {
+      next: { revalidate: 60 },
+    });
+    const data = await res.json();
+    const d = data?.data;
+    return {
+      marketCap: d?.total_market_cap?.inr ?? 0,
+      change24h: d?.market_cap_change_percentage_24h_usd ?? 0,
+    };
+  } catch (err) {
+    console.warn("Market overview fetch failed:", err);
+    return null;
+  }
+}
+
 
 async function getCoins(): Promise<Coin[]> {
   const ids = coinList.map((c) => c.id).join(",");
@@ -115,14 +132,21 @@ async function getCoins(): Promise<Coin[]> {
 
 export default async function Home() {
   const coins = await getCoins();
+  const market = await getMarketOverview();
     const lastUpdated = new Date().toLocaleTimeString("en-IN", {
     hour: "2-digit",
     minute: "2-digit",
   });
 
   return (
-          <main className="min-h-screen bg-gradient-to-b from-black via-neutral-950 to-black text-white px-6 py-16">
-      <div className="max-w-5xl mx-auto">
+                <main className="relative min-h-screen bg-black text-white px-6 py-16 overflow-hidden">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-60"
+          style={{ backgroundImage: "url('/background.png')" }}
+        />
+        <div className="absolute inset-0 bg-black/60" />
+
+        <div className="relative max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-2">
           <img src="/Vestra_header_Logo.png" alt="Vestra" className="h-20 w-auto" />
           <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-full px-3 py-1.5">
@@ -134,9 +158,31 @@ export default async function Home() {
           </div>
         </div>
 
-        <p className="text-gray-400 mt-2 mb-12">
+               <p className="text-gray-400 mt-2 mb-6">
           Live crypto rates with AI-powered insights
         </p>
+
+        {market && (
+          <div className="grid grid-cols-3 gap-4 mb-10">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+              <p className="text-xs text-gray-500">Market Cap</p>
+              <p className="text-lg font-semibold mt-1">
+                ₹{(market.marketCap / 1e12).toFixed(2)}T
+              </p>
+            </div>
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+              <p className="text-xs text-gray-500">24h Change</p>
+              <p
+                className={`text-lg font-semibold mt-1 ${
+                  market.change24h >= 0 ? "text-green-500" : "text-red-500"
+                }`}
+              >
+                {market.change24h >= 0 ? "▲" : "▼"}{" "}
+                {Math.abs(market.change24h).toFixed(2)}%
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
           {coins.map((coin) => {
@@ -176,8 +222,13 @@ export default async function Home() {
           })}
                </div>
 
-        <footer className="mt-16 pt-6 border-t border-neutral-900 text-center text-xs text-gray-600">
-          Powered by CoinGecko & Gemini/Groq AI · Built by Umang, With Ai assited Development
+                <footer className="mt-16 pt-6 border-t border-neutral-900 text-center text-xs text-gray-600 space-y-1">
+          <p>
+            AI commentary is informational only and not financial advice.
+          </p>
+          <p>
+            Powered by CoinGecko & Gemini/Groq AI · Built by Umang, with AI-assisted development.
+          </p>
         </footer>
       </div>
     </main>

@@ -2,8 +2,14 @@ export default function Loading() {
   const placeholders = Array.from({ length: 6 });
 
   return (
-    <main className="relative min-h-screen bg-black text-white px-6 py-16 overflow-hidden">
-      <div className="relative max-w-5xl mx-auto">
+          <main className="relative min-h-screen bg-black text-white px-6 py-16 overflow-hidden">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-60"
+          style={{ backgroundImage: "url('/background.png')" }}
+        />
+        <div className="absolute inset-0 bg-black/60" />
+
+        <div className="relative max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-2">
           <img src="/Vestra_header_Logo.png" alt="Vestra" className="h-20 w-auto" />
           <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-full px-3 py-1.5">
