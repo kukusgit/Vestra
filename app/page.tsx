@@ -27,15 +27,20 @@ const cgHeaders: Record<string, string> = process.env.COINGECKO_API_KEY
   ? { "x-cg-demo-api-key": process.env.COINGECKO_API_KEY }
   : {};
 
-async function fetchJson(url: string, init: RequestInit, ms: number) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    const res = await fetch(url, { ...init, signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
+async function fetchJson(url: string, init: RequestInit, ms: number, retries = 0) {
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try {
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      if (attempt >= retries) throw err;
+      await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 
@@ -128,7 +133,7 @@ async function getMarketOverview() {
     const data = await fetchJson(
       "https://api.coingecko.com/api/v3/global",
       { headers: cgHeaders, next: { revalidate: 60 } },
-      5000
+      5000, 2
     );
     const marketCap = data?.data?.total_market_cap?.inr;
     const btcDominance = data?.data?.market_cap_percentage?.btc;
@@ -196,6 +201,15 @@ function Sparkline({ data }: { data: number[] }) {
   );
 }
 
+async function getAllSparklines(): Promise<number[][]> {
+  const out: number[][] = [];
+  for (const c of coinList) {
+    out.push(await getSparkline(c.id));
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  return out;
+}
+
 async function getDashboard() {
   let priceData: Record<string, { inr?: number; inr_24h_change?: number }> | null = null;
   try {
@@ -227,9 +241,7 @@ async function getDashboard() {
   );
 
   const [sparks, commentaries, market] = await Promise.all([
-    priced.length > 0
-      ? Promise.all(coinList.map((c) => getSparkline(c.id)))
-      : Promise.resolve(coinList.map(() => [] as number[])),
+    getAllSparklines(),
     getAllCommentary(priced.map((c) => ({ name: c.name, change24h: c.change24h }))),
     getMarketOverview(),
   ]);
