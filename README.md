@@ -2,7 +2,7 @@
 
 **Live crypto rates with plain-English AI commentary.**
 
-Vestra is a dashboard that tracks six major cryptocurrencies in Indian rupees, draws a 7-day trend line for each, and adds a short AI-written note that describes what the price has been doing. It is built to keep working when the APIs behind it fail.
+I’m not a crypto person, so I wanted a dashboard that explains things in plain English so which i made it the way that Vestra shows six major coins in rupees, a 7-day chart for each, and a short note on what the price has been doing the notes come from Gemini and if Gemini is down, Groq steps in so the page never goes blank.
 
 **Live demo:** https://vestra-pink-nine.vercel.app/
 
