@@ -6,6 +6,8 @@ Vestra is a dashboard that tracks six major cryptocurrencies in Indian rupees, d
 
 **Live demo:** https://vestra-pink-nine.vercel.app/
 
+![Vestra dashboard](public/screenshot.png)
+
 ---
 
 ## Features
